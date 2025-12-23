@@ -175,14 +175,15 @@ export default function EmployeeForm({
         </Grid>
       </Grid>
 
-      <Button
-        className="mt-4"
+      <div className="mt-4"><Button
+        className=""
         variant="contained"
         color="primary"
         onClick={() => onSubmit({...formData, employeeId: initialData?.employeeId})}
       >
         Save
       </Button>
+    </div>
     </div>
   );
 }

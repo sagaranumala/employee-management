@@ -110,7 +110,7 @@ export default function EmployeeManagement() {
   if (!user || user.role !== "admin") return <div>404 Not Found</div>;
 
   return (
-    <div className="max-w-6xl mx-auto mt-6">
+    <div className=" mx-auto mt-6">
       <ToastContainer position="top-right" autoClose={3000} />
 
       <ReusableTable<Employee>

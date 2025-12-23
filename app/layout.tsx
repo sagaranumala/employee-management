@@ -10,11 +10,14 @@ export const metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className=" min-h-screen flex flex-col ">
+      <body className="bg-gray-900 min-h-screen flex flex-col">
         <AuthProvider>
+          {/* Sticky Header */}
           <Header />
-          <main className="flex-1 flex justify-center items-start pl-[5%] pr-[5%] mt-12 md:p-8">
-            {children}
+
+          {/* Main content */}
+          <main className="flex-1">
+            <div className="w-full max-w-[1400px] mx-auto">{children}</div>
           </main>
         </AuthProvider>
       </body>
