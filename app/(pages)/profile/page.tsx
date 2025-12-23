@@ -29,8 +29,12 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/src/auth/AuthContext';
-import { api, API_BASE, uploadFile } from '@/src/lib/api';
+import { api, API_BASE, ApiResponse, fetchCsrf, uploadFile } from '@/src/lib/api';
 import { useToast } from '../components/toast';
+import { getCsrfToken } from '@/src/lib/csrf';
+import { handlePasswordChange } from '../employees/action';
+// import { getCsrf } from '@/src/lib/csrf';
+// import { apiPost } from '@/src/lib/api2';
 
 // Mock updateProfile and changePassword functions since they're not in AuthContext
 const updateProfile = async (data: any) => {
@@ -115,131 +119,159 @@ export default function ProfilePage() {
     }
   };
 
-  // const handleSaveProfile = async () => {
-  //   setIsLoading(true);
-  //   try {
-  //     await updateProfile(formData);
-  //     setIsEditing(false);
-  //   } catch (error) {
-  //     console.error('Failed to update profile:', error);
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
+   const handleSubmit = async () => {
+    setIsLoading(true);
 
-  const handlePasswordChange = async () => {
-  // Validation (same as before)
-  if (!passwordData.currentPassword) {
-    setPasswordError('Current password is required');
-    return;
-  }
+    const result = await handlePasswordChange(passwordData,token);
 
-  if (!passwordData.newPassword) {
-    setPasswordError('New password is required');
-    return;
-  }
-
-  if (passwordData.newPassword !== passwordData.confirmPassword) {
-    setPasswordError('New passwords do not match');
-    return;
-  }
-
-  if (passwordData.newPassword.length < 6) {
-    setPasswordError('Password must be at least 6 characters long');
-    return;
-  }
-
-  if (passwordData.currentPassword === passwordData.newPassword) {
-    setPasswordError('New password must be different from current password');
-    return;
-  }
-
-  setIsLoading(true);
-  setPasswordError('');
-
-  try {
-    // Make API call WITHOUT userId in body
-    const response = await fetch('http://localhost:8080/index.php?r=auth/updatePassword', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`, // JWT token will identify the user
-      },
-      body: JSON.stringify({
-        currentPassword: passwordData.currentPassword,
-        newPassword: passwordData.newPassword,
-        // NO userId here - server gets it from token
-      }),
-    });
-
-    // Check for redirect (302 status)
-    if (response.redirected) {
-      throw new Error('Request was redirected. Check if CSRF is disabled for this endpoint.');
+    if (result.success) {
+      // Clear form and close modal
+      setPasswordData({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      setShowPasswordModal(false);
     }
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || data.error || 'Failed to change password');
-    }
-
-    // Success - clear form and close modal
-    setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
-    setShowPasswordModal(false);
-
-    alert('Password changed successfully! Please login again with your new password.');
-
-    // Force logout for security
-    logout();
-
-  } catch (error: any) {
-    // Handle specific error messages
-    let errorMessage = 'Failed to change password';
-
-    if (error.message.includes('302') || error.message.includes('redirected')) {
-      errorMessage = 'Server configuration issue. Contact administrator.';
-    } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
-      errorMessage = 'Session expired. Please login again.';
-      logout();
-    } else if (error.message.includes('403')) {
-      errorMessage = 'Current password is incorrect';
-    } else if (error.message.includes('400')) {
-      errorMessage = error.message.replace('Bad Request: ', '');
-    } else {
-      errorMessage = error.message || 'Failed to change password';
-    }
-
-    setPasswordError(errorMessage);
-  } finally {
     setIsLoading(false);
-  }
-};
+  };
 
+//   const handlePasswordChange = async () => {
+//   // Validation (same as before)
+//   if (!passwordData.currentPassword) {
+//     setPasswordError('Current password is required');
+//     return;
+//   }
+
+//   if (!passwordData.newPassword) {
+//     setPasswordError('New password is required');
+//     return;
+//   }
+
+//   if (passwordData.newPassword !== passwordData.confirmPassword) {
+//     setPasswordError('New passwords do not match');
+//     return;
+//   }
+
+//   if (passwordData.newPassword.length < 6) {
+//     setPasswordError('Password must be at least 6 characters long');
+//     return;
+//   }
+
+//   if (passwordData.currentPassword === passwordData.newPassword) {
+//     setPasswordError('New password must be different from current password');
+//     return;
+//   }
+
+//   setIsLoading(true);
+//   setPasswordError('');
+
+//   try {
+//     // Make API call WITHOUT userId in body
+//     const response = await fetch('http://localhost:8080/index.php?r=auth/updatePassword', {
+//       method: 'POST',
+//       headers: {
+//         'Content-Type': 'application/json',
+//         'Authorization': `Bearer ${token}`, // JWT token will identify the user
+//       },
+//       body: JSON.stringify({
+//         currentPassword: passwordData.currentPassword,
+//         newPassword: passwordData.newPassword,
+//         // NO userId here - server gets it from token
+//       }),
+//     });
+
+//     // Check for redirect (302 status)
+//     if (response.redirected) {
+//       throw new Error('Request was redirected. Check if CSRF is disabled for this endpoint.');
+//     }
+
+//     const data = await response.json();
+
+//     if (!response.ok) {
+//       throw new Error(data.message || data.error || 'Failed to change password');
+//     }
+
+//     // Success - clear form and close modal
+//     setPasswordData({ currentPassword: '', newPassword: '', confirmPassword: '' });
+//     setShowPasswordModal(false);
+
+//     alert('Password changed successfully! Please login again with your new password.');
+
+//     // Force logout for security
+//     logout();
+
+//   } catch (error: any) {
+//     // Handle specific error messages
+//     let errorMessage = 'Failed to change password';
+
+//     if (error.message.includes('302') || error.message.includes('redirected')) {
+//       errorMessage = 'Server configuration issue. Contact administrator.';
+//     } else if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+//       errorMessage = 'Session expired. Please login again.';
+//       logout();
+//     } else if (error.message.includes('403')) {
+//       errorMessage = 'Current password is incorrect';
+//     } else if (error.message.includes('400')) {
+//       errorMessage = error.message.replace('Bad Request: ', '');
+//     } else {
+//       errorMessage = error.message || 'Failed to change password';
+//     }
+
+//     setPasswordError(errorMessage);
+//   } finally {
+//     setIsLoading(false);
+//   }
+// };
 
 const getEmployeeIdFromUser = async (): Promise<any> => {
   try {
-    const response = await fetch('http://localhost:8080/index.php?r=employee/findByUser', {
-      method: 'POST', // JWT token identifies the user
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`, // send JWT token automatically
-      },
-      credentials: 'include',
-      body: JSON.stringify({}) // no userId needed
+    // Changed to GET request
+    const data = await api<ApiResponse<any>>('employee/findByUser', {
+      method: 'GET',
+      // No body needed for GET request
     });
 
-    const data = await response.json();
-    setEmployee(data.data);
-
-    if (!response.ok || !data.success) {
+    if (!data.success) {
       console.error(data.message || 'Employee not found');
       return null;
     }
+
+    setEmployee(data.data);
+    return data.data;
   } catch (err) {
     console.error('Failed to fetch employee ID:', err);
     return null;
   }
 };
+
+// const getEmployeeIdFromUser = async (): Promise<any> => {
+//   try {
+//     // Option 1: Using apiPost helper (recommended)
+//     const data = await apiPost<ApiResponse<any>>('employee/findByUser', {});
+    
+//     // Option 2: Using api function directly
+//     // const data = await api<ApiResponse<any>>('employee/findByUser', {
+//     //   method: 'POST',
+//     //   body: {}, // Empty object triggers CSRF token inclusion
+//     // });
+
+//     console.log('Employee response:', data); // Debug log
+
+//     // Handle response based on your ApiResponse interface
+//     if (!data.success) {
+//       console.error(data.message || 'Employee not found');
+//       return null;
+//     }
+
+//     if (data.data) {
+//       setEmployee(data.data);
+//       return data.data;
+//     }
+
+//     return null;
+//   } catch (err: any) {
+//     console.error('Failed to fetch employee ID:', err.message || err);
+//     return null;
+//   }
+// };
 
 
 
@@ -257,58 +289,91 @@ const handleUploadProfilePic = async () => {
   setIsLoading(true);
 
   try {
+    console.log('Starting profile upload for employee:', employee.employeeId);
+    
     /* =========================
-       1️⃣ Upload file to server
+       1️⃣ Upload file to server WITH employeeId and CSRF
     ========================== */
-    const uploadRes: any = await uploadFile('/profile/upload', profilePic);
+    const uploadRes: any = await uploadFile(
+      '/profile/upload', 
+      profilePic,
+      'profile', // field name
+      { employeeId: employee.employeeId } // additional data
+    );
+
+    console.log('Upload response:', uploadRes);
 
     if (!uploadRes?.success) {
       throw new Error(uploadRes?.message || 'File upload failed');
     }
 
-    const profileUrl = uploadRes.fileUrl || uploadRes.filePath;
+    const profileUrl = uploadRes.fileUrl || uploadRes.filePath || uploadRes.profilePicture;
 
     if (!profileUrl) {
       throw new Error('Uploaded file URL not returned');
     }
 
-    /* =========================
-       2️⃣ Update employee record
-    ========================== */
-    const updateRes: any = await api('employee/update', {
-      method: 'POST',
-      body: {
-        employeeId: employee.employeeId,
-        employee: {
-          profilePicture: profileUrl,
-        },
-      },
-    });
+    console.log('File uploaded successfully. URL:', profileUrl);
 
-    if (!updateRes?.success) {
-      throw new Error(updateRes?.message || 'Failed to update profile picture');
+    /* =========================
+       2️⃣ Update employee record with CSRF
+    ========================== */
+    // Get CSRF token for the update request
+    let csrf = getCsrfToken();
+    if (!csrf) {
+      await fetchCsrf();
+    csrf = getCsrfToken();
     }
+    
+    const csrfToken = csrf || null;
+    
+    // const updateRes: any = await api('employee/update', {
+    //   method: 'POST',
+    //   body: {
+    //     employeeId: employee.employeeId,
+    //     employee: {
+    //       profilePicture: profileUrl,
+    //     },
+    //     // Add CSRF token to JSON body
+    //     ...(csrfToken && { YII_CSRF_TOKEN: csrfToken })
+    //   },
+    // });
+
+    // console.log('Update response:', updateRes);
+
+    // if (!updateRes?.success) {
+    //   throw new Error(updateRes?.message || 'Failed to update profile picture');
+    // }
 
     /* =========================
        3️⃣ UI success updates
     ========================== */
     toast.success('Profile picture updated successfully');
 
-    setProfilePicPreview(
-      profileUrl.startsWith('http')
-        ? profileUrl
-        : `${API_BASE}/${profileUrl}`
-    );
+    // Update preview
+    if (profileUrl.startsWith('http')) {
+      setProfilePicPreview(profileUrl);
+    } else if (profileUrl.startsWith('profile/')) {
+      // This is a path, not a full URL - you might need to fetch it differently
+      // Or wait for the next findByUser call to get the presigned URL
+      console.log('Profile path saved:', profileUrl);
+      
+      // Option 1: Immediately fetch employee data to get presigned URL
+      await getEmployeeIdFromUser();
+    }
 
     setIsProfilePicModal(false);
+    
+    // Refresh employee data to get updated profile with presigned URL
+    setTimeout(() => {
+      getEmployeeIdFromUser();
+    }, 1000);
 
   } catch (error: any) {
     console.error('Profile picture upload error:', error);
 
-    // Friendly messages for UI
     const message =
-      error?.message ||
-      'Unable to update profile picture. Please try again.';
+      error?.message || 'Unable to update profile picture. Please try again.';
 
     toast.error(message);
 
@@ -316,55 +381,6 @@ const handleUploadProfilePic = async () => {
     setIsLoading(false);
   }
 };
-
-
-// if (!profilePic) return;
-//               setIsLoading(true);
-//               try {
-//                 const res =await uploadFile('/profile/upload', profilePic);
-//                 if (res.success) {
-//                   toast.success('Profile picture uploaded successfully');
-//                   // Update preview or user state
-//                   setProfilePicPreview(res.filePath ? `${API_BASE}/${res.filePath}` : null);
-//                   setIsProfilePicModal(false); // Close modal after success
-//                 } else {
-//                   toast.error(res.message || 'Upload failed');
-//                 }
-//               } catch (err: any) {
-//                 toast.error(err.message || 'Something went wrong');
-//               } finally {
-//                 setIsLoading(false);
-//               }
-
-// const handleUploadProfilePic = async () => {
-//   if (!profilePic) {
-//     console.warn('No file selected');
-//     return;
-//   }
-
-//   try {
-//     const uploadRes = await uploadFile('/profile/upload', profilePic);
-
-//     const url = uploadRes.fileUrl || uploadRes.filePath;
-
-//     console.log("url",url);
-
-//     const res = await api('employee/update', {
-//       method: 'POST',
-//       body: {
-//         employeeId: employee.employeeId, // must be inside the POST body
-//         employee: {
-//           employeeId: employee?.employeeId,
-//           profilePicture: url, // save URL in employee record
-//         },
-//       },
-//    } )
-//     console.log('Upload successful:', uploadRes);
-//   } catch (err: any) {
-//     console.error('Upload failed:', err.message);
-//   }
-// };
-
 
 
   const handleLogout = () => {
@@ -388,26 +404,6 @@ const handleUploadProfilePic = async () => {
       setProfilePicPreview(URL.createObjectURL(file));
     }
   };
-
-  // const handleUploadProfilePic = async () => {
-  //   if (!profilePic) return;
-  //   setIsLoading(true);
-
-  //   const form = new FormData();
-  //   form.append('profilePic', profilePic);
-
-  //   try {
-  //     await updateProfile(form);
-  //     setIsProfilePicModal(false);
-  //     alert('Profile picture updated successfully!');
-  //   } catch (err) {
-  //     console.error(err);
-  //     alert('Failed to update profile picture');
-  //   } finally {
-  //     setIsLoading(false);
-  //   }
-  // };
-
 
   const stats = [
     { label: 'Total Products', value: '1,245', icon: Package, color: 'bg-blue-500', change: '+12%' },
@@ -437,35 +433,6 @@ const handleUploadProfilePic = async () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-blue-50">
-      {/* Navigation */}
-      {/* <nav className="fixed top-0 w-full bg-white/80 backdrop-blur-md z-50 border-b border-gray-100 shadow-sm">
-        <div className="container mx-auto px-6 py-4">
-          <div className="flex items-center justify-between">
-            <Link href="/dashboard" className="flex items-center space-x-2 group">
-              <div className="w-8 h-8 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-lg flex items-center justify-center group-hover:scale-105 transition-transform">
-                <span className="text-white font-bold">S</span>
-              </div>
-              <span className="text-xl font-bold text-gray-900">StockFlow</span>
-            </Link>
-            <div className="flex items-center space-x-6">
-              <Link href="/dashboard" className="text-gray-600 hover:text-indigo-600 transition">
-                Dashboard
-              </Link>
-              <Link href="/employees" className="text-gray-600 hover:text-indigo-600 transition">
-                Employees
-              </Link>
-              <button
-                onClick={() => setShowLogoutConfirm(true)}
-                className="flex items-center px-4 py-2 text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition"
-              >
-                <LogOut className="h-4 w-4 mr-2" />
-                Logout
-              </button>
-            </div>
-          </div>
-        </div>
-      </nav> */}
-
       <main className="pt-24 pb-12">
         <div className="container mx-auto px-6">
           {/* Header */}
@@ -1142,7 +1109,7 @@ const handleUploadProfilePic = async () => {
                 Cancel
               </button>
               <button
-                onClick={handlePasswordChange}
+                onClick={handleSubmit}
                 disabled={isLoading}
                 className="flex-1 px-4 py-3 bg-gradient-to-r from-green-600 to-emerald-600 text-white font-medium rounded-xl hover:shadow-lg transition disabled:opacity-50"
               >
@@ -1236,89 +1203,6 @@ const handleUploadProfilePic = async () => {
     </motion.div>
   </div>
 )}
-
-      
-
-         {/* Profile Pic Modal */}
-     {/* {isProfilePicModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50 backdrop-blur-sm">
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.8, opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="bg-white rounded-2xl p-6 w-80 shadow-2xl"
-          >
-            <h3 className="text-xl font-semibold mb-6 text-center">Update Profile Picture</h3>
-
-            <div className="flex flex-col items-center space-y-4">
-              <div className="w-32 h-32 rounded-full overflow-hidden border-2 border-gray-300 shadow-md">
-                {profilePicPreview ? (
-                  <img src={profilePicPreview} alt="Preview" className="w-full h-full object-cover" />
-                ) : (
-                  <div className="w-full h-full bg-gray-100 flex items-center justify-center text-gray-400 font-medium">
-                    Preview
-                  </div>
-                )}
-              </div>
-
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleProfilePicChange}
-                className="block w-full text-sm text-gray-600 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-500 file:text-white hover:file:bg-indigo-600 cursor-pointer"
-              />
-
-              <div className="flex space-x-4 w-full justify-center mt-2">
-                <button
-                  onClick={() => setIsProfilePicModal(false)}
-                  className="flex-1 px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded-lg transition-all duration-200 flex items-center justify-center space-x-2"
-                >
-                  <X className="h-4 w-4" />
-                  <span>Cancel</span>
-                </button>
-
-                <button
-                  onClick={handleUploadProfilePic}
-                  disabled={isLoading || !profilePic}
-                  className={`flex-1 px-4 py-2 rounded-lg text-white font-medium flex items-center justify-center space-x-2 transition-all duration-200
-                    ${isLoading || !profilePic ? 'bg-blue-300 cursor-not-allowed' : 'bg-blue-500 hover:bg-blue-600'}
-                  `}
-                >
-                  {isLoading ? (
-                    <svg
-                      className="w-5 h-5 text-white animate-spin"
-                      xmlns="http://www.w3.org/2000/svg"
-                      fill="none"
-                      viewBox="0 0 24 24"
-                    >
-                      <circle
-                        className="opacity-25"
-                        cx="12"
-                        cy="12"
-                        r="10"
-                        stroke="currentColor"
-                        strokeWidth="4"
-                      ></circle>
-                      <path
-                        className="opacity-75"
-                        fill="currentColor"
-                        d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"
-                      ></path>
-                    </svg>
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  <span>{isLoading ? 'Uploading...' : 'Save'}</span>
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      )} */}
-
-      
-
     </div>
   );
 }

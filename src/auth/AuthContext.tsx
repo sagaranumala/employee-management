@@ -1,9 +1,12 @@
 'use client';
+
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import Cookies from 'js-cookie';
-import { api, fetchCsrf, ApiResponse } from '../lib/api';
-import { setCsrf, getCsrf } from '../lib/csrf';
+import { API_BASE, ApiResponse } from '../lib/api';
 import { useToast } from '@/app/(pages)/components/toast';
+import { appendCsrfToFormData, addCsrfHeader, fetchCsrfToken, getCsrfToken } from '@/src/lib/csrf';
+
+/* ================= TYPES ================= */
 
 export interface ApiUser {
   userId: string;
@@ -34,15 +37,20 @@ interface AuthState {
   logout: () => void;
 }
 
+/* ================= CONTEXT ================= */
+
 const AuthCtx = createContext<AuthState | undefined>(undefined);
+
+/* ================= PROVIDER ================= */
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast();
+
   const [user, setUser] = useState<ApiUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Restore auth from storage
+  /* ===== Restore auth on reload ===== */
   useEffect(() => {
     try {
       const storedToken = Cookies.get('token') || localStorage.getItem('token');
@@ -58,93 +66,94 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // LOGIN
-  // LOGIN
-const login = async (email: string, password: string) => {
-  try {
-    // 1️⃣ Fetch CSRF token only if your API requires it
-    // Since your Yii1 API disables CSRF for login, you can skip this
-    // But if you want CSRF protection in future:
-    // if (!getCsrf()) await fetchCsrf();
-
-    // 2️⃣ Call API
-    const res = await fetch('http://localhost:8080/index.php?r=auth/login', {
-      method: 'POST',
-      credentials: 'include', // send cookies for session if needed
-      headers: {
-        'Content-Type': 'application/json',
-        // 'YII_CSRF_TOKEN': getCsrf() || '', // optional if CSRF is enabled
-      },
-      body: JSON.stringify({ email, password }),
-    });
-
-    if (!res.ok) {
-      // HTTP errors (404, 500, etc)
-      const text = await res.text();
-      throw new Error(text || 'Login request failed');
-    }
-
-    const data: ApiResponse<ApiAuthData> = await res.json();
-
-    if (!data.success || !data.data) throw new Error(data.message || 'Invalid login');
-
-    // 3️⃣ Save token and user
-    setToken(data.data.token);
-    setUser(data.data.user);
-    Cookies.set('token', data.data.token, { path: '/', sameSite: 'lax' });
-    localStorage.setItem('token', data.data.token);
-    localStorage.setItem('user', JSON.stringify(data.data.user));
-
-    toast.success('Login successful');
-  } catch (e: any) {
-    console.error('Login error:', e);
-    toast.error(e?.message || 'Login failed');
-  }
-};
-
-
-   // SIGNUP - Updated to match login pattern
-  const signup = async (payload: SignupPayload) => {
+  /* ================= LOGIN ================= */
+  const login = async (email: string, password: string) => {
     try {
-      // 1️⃣ Fetch CSRF token only if your API requires it
-      // Since your Yii1 API disables CSRF for signup, you can skip this
-      // if (!getCsrf()) await fetchCsrf();
+      if (!getCsrfToken()) await fetchCsrfToken();
 
-      // 2️⃣ Call API
-      const res = await fetch('http://localhost:8080/index.php?r=auth/signup', {
+      const formData = new FormData();
+      formData.append('email', email);
+      formData.append('password', password);
+
+      appendCsrfToFormData(formData);
+
+      const res = await fetch(`${API_BASE}auth/login`, {
         method: 'POST',
-        credentials: 'include', // send cookies for session if needed
+        credentials: 'include',
+        body: formData,
         headers: {
-          'Content-Type': 'application/json',
-          // 'YII_CSRF_TOKEN': getCsrf() || '', // optional if CSRF is enabled
+          'X-Requested-With': 'XMLHttpRequest',
+          ...addCsrfHeader(),
         },
-        body: JSON.stringify(payload),
       });
-
-      if (!res.ok) {
-        // HTTP errors (404, 500, etc)
-        const text = await res.text();
-        throw new Error(text || 'Signup request failed');
-      }
 
       const data: ApiResponse<ApiAuthData> = await res.json();
 
-      if (!data.success || !data.data) throw new Error(data.message || 'Signup failed');
+      if (!res.ok || !data.success || !data.data) {
+        throw new Error(data.message || 'Login failed');
+      }
 
-      // 3️⃣ Save token and user
       setToken(data.data.token);
       setUser(data.data.user);
+
+      Cookies.set('token', data.data.token, { path: '/', sameSite: 'lax' });
+      localStorage.setItem('token', data.data.token);
+      localStorage.setItem('user', JSON.stringify(data.data.user));
+
+      toast.success('Login successful');
+    } catch (err: any) {
+      console.error('Login error:', err);
+      toast.error(err.message || 'Login failed');
+      throw err;
+    }
+  };
+
+  /* ================= SIGNUP ================= */
+  const signup = async (payload: SignupPayload) => {
+    try {
+      if (!getCsrfToken()) await fetchCsrfToken();
+
+      const formData = new FormData();
+      formData.append('SignupForm[name]', payload.name);
+      formData.append('SignupForm[email]', payload.email);
+      formData.append('SignupForm[password]', payload.password);
+      if (payload.phone) formData.append('SignupForm[phone]', payload.phone);
+      if (payload.role) formData.append('SignupForm[role]', payload.role);
+
+      appendCsrfToFormData(formData);
+
+      const res = await fetch(`${API_BASE}auth/signup`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+          ...addCsrfHeader(),
+        },
+      });
+
+      const data: ApiResponse<ApiAuthData> = await res.json();
+
+      if (!res.ok || !data.success || !data.data) {
+        throw new Error(data.message || 'Signup failed');
+      }
+
+      setToken(data.data.token);
+      setUser(data.data.user);
+
       Cookies.set('token', data.data.token, { path: '/', sameSite: 'lax' });
       localStorage.setItem('token', data.data.token);
       localStorage.setItem('user', JSON.stringify(data.data.user));
 
       toast.success('Signup successful');
-    } catch (e: any) {
-      console.error('Signup error:', e);
-      toast.error(e?.message || 'Signup failed');
+    } catch (err: any) {
+      console.error('Signup error:', err);
+      toast.error(err.message || 'Signup failed');
+      throw err;
     }
   };
 
+  /* ================= LOGOUT ================= */
   const logout = () => {
     setUser(null);
     setToken(null);
@@ -153,11 +162,16 @@ const login = async (email: string, password: string) => {
     toast.info('Logged out');
   };
 
-  const value = useMemo(() => ({ user, token, loading, login, signup, logout }), [user, token, loading]);
+  /* ================= CONTEXT VALUE ================= */
+  const value = useMemo(
+    () => ({ user, token, loading, login, signup, logout }),
+    [user, token, loading]
+  );
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
 }
 
+/* ================= HOOK ================= */
 export function useAuth(): AuthState {
   const ctx = useContext(AuthCtx);
   if (!ctx) throw new Error('useAuth must be used within AuthProvider');
