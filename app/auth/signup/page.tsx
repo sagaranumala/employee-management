@@ -32,7 +32,7 @@ export default function SignupPage() {
 
   // Redirect if already logged in
   useEffect(() => {
-    if (user) router.replace("/products");
+    if (user) router.replace("/");
   }, [user, router]);
 
   useEffect(() => {

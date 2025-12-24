@@ -7,12 +7,12 @@ import { useToast } from '@/app/(pages)/components/toast';
 import { appendCsrfToFormData, addCsrfHeader, fetchCsrfToken, getCsrfToken } from '@/src/lib/csrf';
 
 /* ================= TYPES ================= */
-
 export interface ApiUser {
   userId: string;
   email: string;
   name?: string;
   role?: string;
+  two2FA?: number;
 }
 
 export interface ApiAuthData {
@@ -32,17 +32,15 @@ interface AuthState {
   user: ApiUser | null;
   token: string | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string, two2FAcode?: string) => Promise<void>;
   signup: (payload: SignupPayload) => Promise<void>;
   logout: () => void;
 }
 
 /* ================= CONTEXT ================= */
-
 const AuthCtx = createContext<AuthState | undefined>(undefined);
 
 /* ================= PROVIDER ================= */
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const toast = useToast();
 
@@ -50,7 +48,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  /* ===== Restore auth on reload ===== */
+  /* Restore auth from localStorage/cookies */
   useEffect(() => {
     try {
       const storedToken = Cookies.get('token') || localStorage.getItem('token');
@@ -67,13 +65,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   /* ================= LOGIN ================= */
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string, two2FAcode?: string) => {
     try {
       if (!getCsrfToken()) await fetchCsrfToken();
 
       const formData = new FormData();
       formData.append('email', email);
       formData.append('password', password);
+      if (two2FAcode) formData.append('two2FAcode', two2FAcode);
 
       appendCsrfToFormData(formData);
 
@@ -90,6 +89,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data: ApiResponse<ApiAuthData> = await res.json();
 
       if (!res.ok || !data.success || !data.data) {
+        if (data.message?.includes('2FA code required')) {
+          const err = new Error('2FA required');
+          (err as any).require2FA = true;
+          throw err;
+        }
         throw new Error(data.message || 'Login failed');
       }
 
